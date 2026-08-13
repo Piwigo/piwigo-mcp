@@ -1,0 +1,21 @@
+{
+    "name": "piwigo/mcp",
+    "require": {
+        "mcp/sdk": "^0.7.0",
+        "nyholm/psr7": "^1.8",
+        "nyholm/psr7-server": "^1.1"
+    },
+    "authors": [
+        {
+            "name": "Linty"
+        }
+    ],
+    "config": {
+        "platform": {
+            "php": "8.1.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
