@@ -17,6 +17,7 @@ include_once(__DIR__ . '/include/auth_middleware.inc.php');
 
 // include tools (set manually)
 include_once(__DIR__ . '/tools/core.tool.php');
+include_once(__DIR__ . '/tools/user.tool.php');
 
 use Mcp\Server;
 use Mcp\Server\Session\FileSessionStore;
@@ -36,6 +37,10 @@ $server = Server::builder()
   ->addTool([PiwigoCoreCapabilities::class, 'get_php_version'], 'php_ver', 'PHP Version', 'Get the PHP version')
   ->addTool([PiwigoCoreCapabilities::class, 'get_mariadb_version'], 'mariadb_ver', 'MariaDB Version', 'Get the database version')
   ->addTool([PiwigoCoreCapabilities::class, 'get_status'], 'piwigo_status', 'Piwigo status', 'Get Piwigo status')
+  ->addTool([PiwigoUserCapabilities::class, 'get_user'], 'get_user', 'Get User', 'Get a user')
+  ->addTool([PiwigoUserCapabilities::class, 'edit_user'], 'edit_user', 'Edit User', 'Edit the info of user')
+  ->addTool([PiwigoUserCapabilities::class, 'delete_user'], 'delete_user', 'Delete User', 'Delete a user')
+  ->addTool([PiwigoUserCapabilities::class, 'get_all_users'], 'get_all_users', 'Get All Users', 'Get all the users')
   ->build();
 
 // setup http transport (instead of Stdio)
