@@ -1,13 +1,13 @@
 <?php return array(
     'root' => array(
         'name' => 'piwigo/mcp',
-        'pretty_version' => 'dev-master',
-        'version' => 'dev-master',
-        'reference' => 'cb1a748553eb286865eeac8cb70bbaf75c376eb0',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '9e6dd321590001d7fccc975d6d1acd752aad0316',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => false,
+        'dev' => true,
     ),
     'versions' => array(
         'doctrine/deprecations' => array(
@@ -137,9 +137,9 @@
             'dev_requirement' => false,
         ),
         'piwigo/mcp' => array(
-            'pretty_version' => 'dev-master',
-            'version' => 'dev-master',
-            'reference' => 'cb1a748553eb286865eeac8cb70bbaf75c376eb0',
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '9e6dd321590001d7fccc975d6d1acd752aad0316',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -243,6 +243,15 @@
             'reference' => 'f16e1d5863e37f8d8c2a01719f5b34baa2b714d3',
             'type' => 'library',
             'install_path' => __DIR__ . '/../psr/log',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'symfony/finder' => array(
+            'pretty_version' => 'v6.4.42',
+            'version' => '6.4.42.0',
+            'reference' => '0b73dac42493acbadbba644207a715b254e9b029',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../symfony/finder',
             'aliases' => array(),
             'dev_requirement' => false,
         ),

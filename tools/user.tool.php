@@ -2,6 +2,7 @@
 if (!defined('PHPWG_ROOT_PATH')) die('Hacking attempt!');
 
 use Mcp\Capability\Attribute\Schema;
+use Mcp\Capability\Attribute\McpTool;
 use Mcp\Exception\ToolCallException;
 
 class PiwigoUserCapabilities
@@ -12,6 +13,8 @@ class PiwigoUserCapabilities
    * @param string|null $username username of the user, takes precedence over email
    * @param string|null $email email used when username is not given
    */
+
+  #[McpTool(name:'get_user',title:'Get User',description:'Get a user')]
   public function get_user(?string $username = null, ?string $email = null)
   {
     if (null !== $username and '' != trim($username))
@@ -55,6 +58,7 @@ class PiwigoUserCapabilities
    *
    * Info return: username, email, status, level, registration_date, last_visit, groups
    */
+  #[McpTool(name:'get_all_users',title:'Get All Users',description:'Get all the users')]
   public function get_all_users()
   {
     $users_list = $this->fetch_user();
@@ -75,6 +79,7 @@ class PiwigoUserCapabilities
    * @param string|null $theme name of an installed theme
    * @param int[]|null $group_id groups of the user, replaces the current ones, use [-1] to remove them all
    */
+  #[McpTool(name:'edit_user',title:'Edit User',description:'Edit the info of user')]
   public function edit_user(
     string $username,
     ?string $new_username = null,
@@ -138,6 +143,7 @@ class PiwigoUserCapabilities
    *
    * @param string $username username to delete
    */
+  #[McpTool(name:'delete_user',title:'Delete User',description:'Delete a user')]
   public function delete_user(string $username)
   {
     global $conf, $user;

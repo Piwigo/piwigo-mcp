@@ -33,14 +33,7 @@ $session_dir = mcp_get_session_dir();
 $server = Server::builder()
   ->setServerInfo('Piwigo MCP Server', '0.0.1', 'Piwigo MCP Server')
   ->setSession(new FileSessionStore($session_dir))
-  ->addTool([PiwigoCoreCapabilities::class, 'get_piwigo_version'], 'piwigo_ver', 'Piwigo Version', 'Get the Piwigo version')
-  ->addTool([PiwigoCoreCapabilities::class, 'get_php_version'], 'php_ver', 'PHP Version', 'Get the PHP version')
-  ->addTool([PiwigoCoreCapabilities::class, 'get_mariadb_version'], 'mariadb_ver', 'MariaDB Version', 'Get the database version')
-  ->addTool([PiwigoCoreCapabilities::class, 'get_status'], 'piwigo_status', 'Piwigo status', 'Get Piwigo status')
-  ->addTool([PiwigoUserCapabilities::class, 'get_user'], 'get_user', 'Get User', 'Get a user')
-  ->addTool([PiwigoUserCapabilities::class, 'edit_user'], 'edit_user', 'Edit User', 'Edit the info of user')
-  ->addTool([PiwigoUserCapabilities::class, 'delete_user'], 'delete_user', 'Delete User', 'Delete a user')
-  ->addTool([PiwigoUserCapabilities::class, 'get_all_users'], 'get_all_users', 'Get All Users', 'Get all the users')
+  ->setDiscovery(__DIR__,['tools'])
   ->build();
 
 // setup http transport (instead of Stdio)
