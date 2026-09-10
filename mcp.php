@@ -3,8 +3,9 @@
 define('PHPWG_ROOT_PATH', dirname(__FILE__) . '/../../');
 include_once(PHPWG_ROOT_PATH . 'include/common.inc.php');
 
-// verify if piwigo-mcp plugin is enabled
-if (0 === count(get_db_plugins('active', 'piwigo-mcp')))
+// verify if piwigo-mcp plugin is enabled and correctly bootstrapped by main.inc.php
+// (MCP_PATH is undefined if main.inc.php returned early: bad folder name or PHP < 8.1)
+if (0 === count(get_db_plugins('active', 'piwigo-mcp')) or !defined('MCP_PATH'))
 {
   http_response_code(503);
   header('Content-Type: application/json');
@@ -12,12 +13,12 @@ if (0 === count(get_db_plugins('active', 'piwigo-mcp')))
 }
 
 // require vendor and auth middleware
-require_once __DIR__ . '/vendor/autoload.php';
-include_once(__DIR__ . '/include/auth_middleware.inc.php');
+require_once(MCP_PATH . 'vendor/autoload.php');
+include_once(MCP_PATH . 'include/auth_middleware.inc.php');
 
 // include tools (set manually)
-include_once(__DIR__ . '/tools/core.tool.php');
-include_once(__DIR__ . '/tools/user.tool.php');
+include_once(MCP_PATH . 'tools/core.tool.php');
+include_once(MCP_PATH . 'tools/user.tool.php');
 
 use Mcp\Server;
 use Mcp\Server\Session\FileSessionStore;
@@ -33,7 +34,7 @@ $session_dir = mcp_get_session_dir();
 $server = Server::builder()
   ->setServerInfo('Piwigo MCP Server', '0.0.1', 'Piwigo MCP Server')
   ->setSession(new FileSessionStore($session_dir))
-  ->setDiscovery(__DIR__,['tools'])
+  ->setDiscovery(MCP_REALPATH, array('tools'))
   ->build();
 
 // setup http transport (instead of Stdio)
