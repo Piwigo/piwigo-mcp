@@ -18,6 +18,7 @@ include_once(__DIR__ . '/include/auth_middleware.inc.php');
 // include tools (set manually)
 include_once(__DIR__ . '/tools/core.tool.php');
 include_once(__DIR__ . '/tools/user.tool.php');
+include_once(__DIR__ . '/tools/album.tool.php');
 
 use Mcp\Server;
 use Mcp\Server\Session\FileSessionStore;
@@ -41,6 +42,11 @@ $server = Server::builder()
   ->addTool([PiwigoUserCapabilities::class, 'edit_user'], 'edit_user', 'Edit User', 'Edit the info of user')
   ->addTool([PiwigoUserCapabilities::class, 'delete_user'], 'delete_user', 'Delete User', 'Delete a user')
   ->addTool([PiwigoUserCapabilities::class, 'get_all_users'], 'get_all_users', 'Get All Users', 'Get all the users')
+  ->addTool([PiwigoAlbumCapabilities::class, 'get_album'], 'get_album', 'Get Album', 'Get the albums matching a name')
+  ->addTool([PiwigoAlbumCapabilities::class, 'get_all_albums'], 'get_all_albums', 'Get All Albums', 'Get all the albums in the gallery')
+  ->addTool([PiwigoAlbumCapabilities::class, 'create_album'], 'create_album', 'Create Album', 'Create a virtual album')
+  ->addTool([PiwigoAlbumCapabilities::class, 'delete_album'], 'delete_album', 'Delete Album', 'Delete an album')
+  ->addTool([PiwigoAlbumCapabilities::class, 'edit_album'], 'edit_album', 'Edit Album', 'Edit the information of an album')
   ->build();
 
 // setup http transport (instead of Stdio)
