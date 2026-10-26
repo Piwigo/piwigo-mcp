@@ -16,17 +16,19 @@ class Piwigo_MCP_AuthMiddleware implements MiddlewareInterface
     $apikey = $this->extract_apikey($request);
 
     // verify api key
-    if (null === $apikey or !auth_key_login($apikey, true))
-    {
+    if (null === $apikey or !auth_key_login($apikey, true)) {
       return $this->unauthorized();
     }
+
+    // same as a key authenticated call on ws.php (include/user.inc.php): the
+    // session is not saved and $conf['api_key_forbidden_methods'] applies
+    // defined('PWG_API_KEY_REQUEST') or define('PWG_API_KEY_REQUEST', true);
 
     // build user to keep permission
     $user = build_user($user['id'], false);
 
     // for now this mcp is only for admin
-    if (!is_admin())
-    {
+    if (!is_admin()) {
       return $this->unauthorized();
     }
 
@@ -35,8 +37,7 @@ class Piwigo_MCP_AuthMiddleware implements MiddlewareInterface
 
   private function extract_apikey(ServerRequestInterface $request): ?string
   {
-    if (preg_match('/^Bearer\s+(\S+)$/i', $request->getHeaderLine('Authorization'), $matches))
-    {
+    if (preg_match('/^Bearer\s+(\S+)$/i', $request->getHeaderLine('Authorization'), $matches)) {
       return $matches[1];
     }
 
