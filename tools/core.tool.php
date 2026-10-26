@@ -26,7 +26,7 @@ class PiwigoCoreCapabilities
       'piwigo_version' => PHPWG_VERSION,
       'php_version' => PHP_VERSION,
       'mariadb_version' => pwg_get_db_version(),
-      'user_id' => $user['id'], 
+      'user_id' => $user['id'],
     );
   }
 }

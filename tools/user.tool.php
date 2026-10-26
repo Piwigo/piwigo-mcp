@@ -1,67 +1,159 @@
 <?php
 if (!defined('PHPWG_ROOT_PATH')) die('Hacking attempt!');
 
+// check_and_save_user_infos() reports errors with the WS_ERR_* constants defined here
+include_once(PHPWG_ROOT_PATH . 'include/ws_core.inc.php');
+
 use Mcp\Capability\Attribute\Schema;
 use Mcp\Exception\ToolCallException;
 
 class PiwigoUserCapabilities
 {
   /**
-   * Get a single user, by username or by email
+   * List the users one page at a time, or find one user
    *
-   * @param string|null $username username of the user, takes precedence over email
-   * @param string|null $email email used when username is not given
+   * user_id, username and email match exactly, to get one user. search matches a part
+   * of a username, an email or a group name. All the filters given apply together.
+   *
+   * Info return: paging (page, per_page, count, total_count) and users (id, username, email, status, level, group ids, registration_date, last_visit)
+   *
+   * @param int|null $page page to return, the first one is 0 (the default)
+   * @param int|null $per_page number of users per page, 50 by default
+   * @param string|null $search part of a username, an email or a group name
+   * @param string|null $status only the users having this status
+   * @param string|null $order_by sort the users by this field, id by default. status sorts webmaster, admin, normal, generic, guest
+   * @param string|null $order_direction asc (the default) or desc
+   * @param int|null $user_id only the user with this id
+   * @param string|null $username only the user with exactly this username, case sensitive
+   * @param string|null $email only the user with exactly this email, case ignored
+   * @param int|null $group_id only the members of this group
+   * @param int|null $min_level only the users with this privacy level or higher, one of the levels available (0, 1, 2, 4, 8)
+   * @param int|null $max_level only the users with this privacy level or lower, one of the levels available (0, 1, 2, 4, 8)
+   * @param string|null $min_register only the users registered on or after this date: YYYY, YYYY-mm or YYYY-mm-dd
+   * @param string|null $max_register only the users registered on or before this date: YYYY, YYYY-mm or YYYY-mm-dd
    */
-  public function get_user(?string $username = null, ?string $email = null)
-  {
-    if (null !== $username and '' != trim($username))
-    {
-      $username = trim($username);
-      $user_id = get_userid($username);
-      $identifier = 'username "'.$username.'"';
+  public function get_all_users(
+    ?int $page = null,
+    #[Schema(minimum: 1, maximum: 200)]
+    ?int $per_page = null,
+    ?string $search = null,
+    #[Schema(enum: array('guest', 'generic', 'normal', 'admin', 'webmaster'))]
+    ?string $status = null,
+    #[Schema(enum: array('id', 'username', 'email', 'level'))]
+    ?string $order_by = null,
+    #[Schema(enum: array('asc', 'desc'))]
+    ?string $order_direction = null,
+    ?int $user_id = null,
+    ?string $username = null,
+    ?string $email = null,
+    ?int $group_id = null,
+    ?int $min_level = null,
+    ?int $max_level = null,
+    ?string $min_register = null,
+    ?string $max_register = null
+  ) {
+    include_once(PHPWG_ROOT_PATH . 'include/ws_functions/pwg.users.php');
 
-      if (false === $user_id)
-      {
-        throw new ToolCallException('No user found with '.$identifier.'.');
+    // the first page is 0, 50 users by default, 200 at most
+    $page = max(0, $page ?? 0);
+    $per_page = max(1, min($per_page ?? 50, 200));
+
+    $user_ids = null === $user_id ? array() : array($user_id);
+
+    foreach (array('username' => $username, 'email' => $email) as $field => $value) {
+      if (null === $value or '' == trim($value)) {
+        continue;
       }
-    }
-    else if (null !== $email and '' != trim($email))
-    {
-      $email = trim($email);
-      $user_id = get_userid_by_email($email);
-      $identifier = 'email "'.$email.'"';
 
-      if (false === $user_id)
-      {
-        throw new ToolCallException('No user found with '.$identifier.'.');
+      $found_id = 'username' == $field ? get_userid(trim($value)) : get_userid_by_email(trim($value));
+
+      // no such user, or not the same user as the other exact filters: nothing matches
+      if (false === $found_id or (count($user_ids) > 0 and !in_array($found_id, $user_ids))) {
+        return array(
+          'paging' => array('page' => $page, 'per_page' => $per_page, 'count' => 0, 'total_count' => 0),
+          'users' => array(),
+        );
       }
-    }
-    else
-    {
-      throw new ToolCallException('Provide either username or email.');
+
+      $user_ids = array(intval($found_id));
     }
 
-    $user = $this->fetch_user(array($user_id));
+    //API method call - get the user list
+    $result = PiwigoMCPWebService::check(\ws_users_getList(PiwigoMCPWebService::escape(array(
+      'page' => $page,
+      'per_page' => $per_page,
+      'order' => ($order_by ?? 'id') . ' ' . ($order_direction ?? 'asc') . ('id' == ($order_by ?? 'id') ? '' : ', id'),
+      'display' => 'basics,registration_date,last_visit,total_count', ##temporary since there are lots of more options in the ws_func
+      'filter' => $search,
+      'status' => null === $status ? array() : array($status),
+      'user_id' => $user_ids,
+      'group_id' => null === $group_id ? array() : array($group_id),
+      // max_level is read by the function but not declared on pwg.users.getList
+      'min_level' => $min_level,
+      'max_level' => $max_level,
+      // the function checks the date format
+      'min_register' => $min_register,
+      'max_register' => $max_register,
+    )), $service));
 
-    if (0 == count($user)){
-      throw new ToolCallException('No profile data for the user with '.$identifier.'');
-    }
+    // the same total is already in paging, ws_users_getList() keeps this copy for old clients
+    unset($result['total_count']);
 
-    return array('user' => array_values($user)[0]);
+    return $result;
   }
 
   /**
-   * List all users
+   * Register a new user, with a random password nobody sees
    *
-   * Info return: username, email, status, level, registration_date, last_visit, groups
+   * Only creates the account, as pwg.users.add does: the user gets the Piwigo default.
+   *
+   * Info return: user (id, username, email, status, level, group ids) and password_link (whether the mail was sent, to whom, how long the link stays valid)
+   *
+   * @param string $username login of the new user
+   * @param string|null $email email address, needed to send the password link
+   * @param bool|null $send_password_link true to mail the user a link to set their password
    */
-  public function get_all_users()
+  public function register_user(string $username, ?string $email = null, ?bool $send_password_link = null)
   {
-    $users_list = $this->fetch_user();
+    $username = trim($username);
+    $email = null === $email ? '' : trim($email);
 
-    return array('users' => array_values($users_list));
+    if ('' == $username) {
+      throw new ToolCallException('Provide a username.');
+    }
+
+    if (false !== get_userid($username)) {
+      throw new ToolCallException('A user with username "' . $username . '" already exists.');
+    }
+
+    // refused before anything is created, the link can only go by mail
+    if ($send_password_link and '' == $email) {
+      throw new ToolCallException('Provide an email to send the password link to.');
+    }
+
+    include_once(PHPWG_ROOT_PATH . 'include/ws_functions/pwg.users.php');
+
+    // API method call - register a new user with auto-generated password
+    $service = PiwigoMCPWebService::service('pwg.users.add');
+    $created_user = PiwigoMCPWebService::check(\ws_users_add(PiwigoMCPWebService::escape(array(
+      'username' => $username,
+      'password' => null,
+      'password_confirm' => null,
+      'email' => '' == $email ? null : $email,
+      'auto_password' => true,
+      'pwg_token' => get_pwg_token(),
+    )), $service));
+
+    $registered = array('user' => $created_user['users'][0]);
+
+    /**
+     *
+     * A code block might be dedicated in case we need to handle the password generation link sent via email
+     *
+     **/
+
+    return $registered;
   }
-
 
   /**
    * Edit a user.
@@ -85,14 +177,33 @@ class PiwigoUserCapabilities
     ?string $language = null,
     ?string $theme = null,
     ?array $group_id = null
-    )
-  {
+  ) {
+    global $conf, $user;
+
     $username = trim($username);
     $user_id = get_userid($username);
 
-    if (false === $user_id)
-    {
-      throw new ToolCallException('No user found with username "'.$username.'".');
+    if (false === $user_id) {
+      throw new ToolCallException('No user found with username "' . $username . '".');
+    }
+
+    $target = $this->fetch_user_by_id($user_id, 'username "' . $username . '"');
+
+    $this->assert_can_manage($user_id, $target['status']);
+
+    if (null !== $status) {
+      $this->assert_can_grant_status($status);
+
+      // core silently discards status updates for these ids, refuse loudly instead
+      $status_protected = array(
+        $user['id'],
+        $conf['guest_id'],
+        $conf['webmaster_id'],
+      );
+
+      if (in_array($user_id, $status_protected)) {
+        throw new ToolCallException('The status of user "' . $username . '" cannot be changed.');
+      }
     }
 
     $fields = array(
@@ -103,86 +214,100 @@ class PiwigoUserCapabilities
       'language' => $language,
       'theme' => $theme,
       'group_id' => empty($group_id) ? null : array_map('intval', $group_id),
-      );
+    );
 
     $params = array();
 
-    foreach ($fields as $field => $value)
-    {
-      if (null !== $value)
-      {
+    foreach ($fields as $field => $value) {
+      if (null !== $value) {
         $params[$field] = $value;
       }
     }
 
-    if (0 == count($params))
-    {
+    if (0 == count($params)) {
       throw new ToolCallException('Nothing to update, provide at least one field to edit.');
     }
 
     $params['user_id'] = array($user_id);
+    $params['pwg_token'] = get_pwg_token();
 
-    //update the member info through Piwigo core function
-    $updated = check_and_save_user_infos($params);
+    $service = PiwigoMCPWebService::service('pwg.users.getList');
+    $result = PiwigoMCPWebService::check(\ws_users_setInfo(PiwigoMCPWebService::escape($params), $service));
 
-    if (isset($updated['error']))
-    {
-      throw new ToolCallException($updated['error']['message']);
-    }
-
-    return $this->get_user(isset($params['username']) ? $params['username'] : $username);
+    return $result;
   }
 
   /**
-   * Delete a user.
+   * Delete a user
    *
-   * @param string $username username to delete
+   * Info return: deleted and the username deleted
+   *
+   * @param string|null $username username to delete, case sensitive
+   * @param int|null $user_id id of the user to delete, must match username when both are given
    */
-  public function delete_user(string $username)
+  public function delete_user(?string $username = null, ?int $user_id = null)
   {
     global $conf, $user;
 
-    //use Piwigo core function
-    include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
+    include_once(PHPWG_ROOT_PATH . 'admin/include/functions.php');
 
-    $user_id = get_userid($username);
+    $username = null === $username ? '' : trim($username);
 
-    if (false === $user_id)
-    {
-      throw new ToolCallException('No user found with name '.$username.'.');
+    if (null === $user_id and '' == $username) {
+      throw new ToolCallException('Provide a username or a user id.');
     }
 
-    //These users cannot be deleted
+    if (null !== $user_id) {
+      $found_username = get_username($user_id);
+
+      if (false === $found_username) {
+        throw new ToolCallException('No user found with id ' . $user_id . '.');
+      }
+
+      if ('' != $username and $found_username != $username) {
+        throw new ToolCallException('The user with id ' . $user_id . ' is "' . $found_username . '", not "' . $username . '".');
+      }
+
+      $username = $found_username;
+    } else {
+      $user_id = get_userid($username);
+
+      if (false === $user_id) {
+        throw new ToolCallException('No user found with username "' . $username . '".');
+      }
+    }
+
     $protected_users = array(
       $user['id'],
       $conf['guest_id'],
       $conf['default_user_id'],
       $conf['webmaster_id'],
-      );
+    );
 
-    if ('admin' == $user['status'])
-    {
-      $query = '
-SELECT
-    user_id
-  FROM '.USER_INFOS_TABLE.'
-  WHERE status IN (\'webmaster\', \'admin\')
-;';
-      $protected_users = array_merge($protected_users, query2array($query, null, 'user_id'));
+    if (in_array($user_id, $protected_users)) {
+      throw new ToolCallException('User "' . $username . '" is protected and cannot be deleted.');
     }
 
-    if (in_array($user_id, $protected_users))
-    {
-      throw new ToolCallException('User ('.$username.') is protected and can not be deleted.');
-    }
+    $target = $this->fetch_user_by_id($user_id, 'username "' . $username . '"');
 
-    // global Piwigo delete user function
-    \delete_user($user_id);
+    $this->assert_can_manage($user_id, $target['status']);
+
+    include_once(PHPWG_ROOT_PATH . 'include/ws_functions/pwg.users.php');
+
+    $service = null;
+    PiwigoMCPWebService::check(\ws_users_delete(PiwigoMCPWebService::escape(array(
+      'user_id' => array(intval($user_id)),
+      'pwg_token' => get_pwg_token(),
+    )), $service));
+
+    if (false !== get_username($user_id)) {
+      throw new ToolCallException('User "' . $username . '" was not deleted.');
+    }
 
     return array(
       'deleted' => true,
       'username' => $username,
-      );
+    );
   }
 
 
@@ -192,82 +317,69 @@ SELECT
    * 
    ********************************************************/
   /**
-   * Fetch users with their groups, keyed by user id.
+   * Throw unless the caller can manage this user.
    *
-   * @param int[]|null $user_ids restrict to these ids, null for all users
-   * @param int|null $limit maximum number of rows to return
+   * A caller only reaches users ranked strictly below them, plus their own account.
+   *
+   * @param int $target_id id of the user being managed
+   * @param string $target_status status of the user being managed
    */
-  private function fetch_user(?array $user_ids = null, ?int $limit = null)
+  private function assert_can_manage($target_id, $target_status)
   {
-    global $conf;
+    global $user;
 
-    load_language('admin.lang');
-
-    // an explicit but empty id list matches nothing, no need to hit the database
-    if (null !== $user_ids and 0 == count($user_ids))
-    {
-      return array();
+    // editing your own account is always allowed
+    if ($target_id == $user['id']) {
+      return;
     }
 
-    $query = '
-      SELECT
-          u.'.$conf['user_fields']['id'].' AS id,
-          u.'.$conf['user_fields']['username'].' AS username,
-          u.'.$conf['user_fields']['email'].' AS email,
-          ui.status,
-          ui.level,
-          ui.registration_date,
-          ui.last_visit
-      FROM '.USERS_TABLE.' AS u
-      INNER JOIN '.USER_INFOS_TABLE.' AS ui ON u.'.$conf['user_fields']['id'].' = ui.user_id'
-      .(null !== $user_ids ? '
-      WHERE u.'.$conf['user_fields']['id'].' IN ('.implode(',', array_map('intval', $user_ids)).')' : '')
-      .(null !== $limit ? '
-      LIMIT '.intval($limit) : '').'
-      ;';
+    if (get_access_type_status($target_status) >= get_access_type_status($user['status'])) {
+      throw new ToolCallException(
+        'You cannot manage a user with an equal or higher status than yours ('
+          . $target_status . ' vs ' . $user['status'] . ').'
+      );
+    }
+  }
 
-    $users_list = array();
+  /**
+   * Throw unless the caller can assign this status.
+   *
+   * @param string $status status to grant
+   */
+  private function assert_can_grant_status($status)
+  {
+    global $user;
 
-    foreach (query2array($query) as $user_row)
-    {
-      $user_id = intval($user_row['id']);
-      unset($user_row['id']);
+    if (get_access_type_status($status) > get_access_type_status($user['status'])) {
+      throw new ToolCallException('You cannot grant a status higher than yours (' . $user['status'] . ').');
+    }
+  }
 
-      //privacy level
-      $level = intval($user_row['level']);
-      unset($user_row['level']);
-      $user_row['level_label'] = l10n(sprintf('Level %d', $level));
+  /**
+   * Fetch one user through pwg.users.getList.
+   *
+   * @param int $user_id id of the user
+   * @param string $identifier how the user was named, for the error message
+   * @return array id, username, email, status, level, group ids, registration_date, last_visit
+   */
+  private function fetch_user_by_id(int $user_id, string $identifier)
+  {
+    include_once(PHPWG_ROOT_PATH . 'include/ws_functions/pwg.users.php');
 
-      //init of user's group attribute
-      $user_row['groups'] = array();
+    // ws_users_getList() reads order, display, per_page and page without checking them
+    $service = null;
+    $result = PiwigoMCPWebService::check(\ws_users_getList(PiwigoMCPWebService::escape(array(
+      'user_id' => array($user_id),
+      'page' => 0,
+      'per_page' => 1,
+      'order' => 'id',
+      'display' => 'basics,registration_date,last_visit',
+    )), $service));
 
-      $users_list[$user_id] = $user_row;
+    if (0 == count($result['users'])) {
+      throw new ToolCallException('No profile data for the user with ' . $identifier . '.');
     }
 
-    // Get the group user are in
-    if (count($users_list) > 0)
-    {
-      $group_query = '
-  SELECT
-    ug.user_id,
-    g.id,
-    g.name
-  FROM '.USER_GROUP_TABLE.' AS ug
-    INNER JOIN '.GROUPS_TABLE.' AS g
-      ON g.id = ug.group_id
-  WHERE ug.user_id IN ('.implode(',', array_keys($users_list)).')
-  ORDER BY g.name;';
-
-      foreach (query2array($group_query) as $group)
-      {
-        $users_list[ intval($group['user_id']) ]['groups'][] = array(
-          'id' => intval($group['id']),
-          'name' => $group['name'],
-          );
-      }
-    }
-
-    return $users_list;
-    }
-
+    return $result['users'][0];
+  }
 }
